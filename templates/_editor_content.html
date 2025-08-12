@@ -1,0 +1,13 @@
+<div id="editor-content" class="editor-container">
+    {% if current_page %}
+        <textarea id="editor-textarea" class="editor-textarea" data-page-id="{{ current_page.id }}">{{ current_page.text }}</textarea>
+    {% else %}
+        <div class="alert alert-warning">No pages found for this book.</div>
+    {% endif %}
+</div>
+
+<script>
+    // Update the page counter
+    document.getElementById('current-page-num').textContent = '{{ current_page_index + 1 }}';
+    document.getElementById('total-pages').textContent = '{{ total_pages }}';
+</script>

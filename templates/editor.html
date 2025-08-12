@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Book - {{ book_name }} | BookAudio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.5"></script>
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            background-color: #f8f9fa;
+        }
+        .header-logo {
+            font-weight: bold;
+            font-size: 1.8rem;
+        }
+        .editor-container {
+            height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
+        }
+        .editor-textarea {
+            flex-grow: 1;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 16px;
+            line-height: 1.5;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+            resize: none;
+        }
+        .editor-textarea:focus {
+            outline: none;
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .page-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .page-info {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+        .text-tools {
+            margin-bottom: 1rem;
+            padding: 10px;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+        }
+        .text-tools button {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .spell-suggestion {
+            cursor: pointer;
+            margin-right: 5px;
+            display: inline-block;
+        }
+        .spell-suggestion:hover {
+            text-decoration: underline;
+        }
+        .progress {
+            height: 10px;
+        }
+        #status-message {
+            transition: opacity 0.5s;
+        }
+        .fade-out {
+            opacity: 0;
+        }
+        .audio-player {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .chunk-divider {
+            border-top: 2px dashed #dc3545;
+            margin: 10px 0;
+            position: relative;
+        }
+        .chunk-divider::after {
+            content: "Chunk Break";
+            position: absolute;
+            top: -10px;
+            right: 0;
+            background-color: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
+            <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
+                <span class="header-logo">📚 BookAudio</span>
+            </a>
+            <div>
+                <a href="/" class="btn btn-outline-secondary me-2">Home</a>
+                <button id="generate-audio-btn" class="btn btn-success">
+                    Generate Audio
+                </button>
+            </div>
+        </header>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Editing: {{ book_name }}</h5>
+                        <div class="progress-info">
+                            <span id="progress-text">{{ progress }}% Complete</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress mb-3">
+                            <div class="progress-bar" role="progressbar" style="width: {{ progress }}%" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        
+                        <div id="status-message" class="alert alert-success d-none">
+                            Changes saved successfully!
+                        </div>
+                        
+                        <div class="page-controls">
+                            <div>
+                                <button id="prev-page-btn" class="btn btn-outline-primary" 
+                                    hx-get="/api/prev_page"
+                                    hx-trigger="click"
+                                    hx-target="#editor-content"
+                                    hx-swap="outerHTML">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-left" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+                                    </svg>
+                                    Previous Page
+                                </button>
+                                <button id="next-page-btn" class="btn btn-outline-primary"
+                                    hx-get="/api/next_page"
+                                    hx-trigger="click"
+                                    hx-target="#editor-content"
+                                    hx-swap="outerHTML">
+                                    Next Page
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-right" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="page-info">
+                                Page <span id="current-page-num">{{ current_page_index + 1 }}</span> of <span id="total-pages">{{ total_pages }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="text-tools">
+                            <div class="mb-2">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="formatText('capitalize')">Capitalize Sentences</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="formatText('fix-spaces')">Fix Spaces</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="formatText('fix-hyphens')">Fix Hyphenation</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="formatText('remove-breaks')">Remove Line Breaks</button>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-outline-danger" onclick="showChunkBreaks()">Show Chunk Breaks</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="hideChunkBreaks()">Hide Chunk Breaks</button>
+                                <button class="btn btn-sm btn-outline-info" onclick="checkSpelling()">Check Spelling</button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="resetText()">Reset Text</button>
+                            </div>
+                        </div>
+                        
+                        <div id="editor-content" class="editor-container">
+                            {% if current_page %}
+                                <textarea id="editor-textarea" class="editor-textarea" data-page-id="{{ current_page.id }}">{{ current_page.text }}</textarea>
+                            {% else %}
+                                <div class="alert alert-warning">No pages found for this book.</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-3">
+                            <div>
+                                <button id="save-btn" class="btn btn-primary">
+                                    Save Changes
+                                </button>
+                            </div>
+                            <div>
+                                <button id="preview-audio-btn" class="btn btn-outline-success">
+                                    Preview Audio
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="audio-preview" class="d-none mt-3">
+                            <h5>Audio Preview</h5>
+                            <audio id="audio-player" class="audio-player" controls></audio>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const saveBtn = document.getElementById('save-btn');
+            const editorTextarea = document.getElementById('editor-textarea');
+            const statusMessage = document.getElementById('status-message');
+            const generateAudioBtn = document.getElementById('generate-audio-btn');
+            const previewAudioBtn = document.getElementById('preview-audio-btn');
+            const audioPreview = document.getElementById('audio-preview');
+            const audioPlayer = document.getElementById('audio-player');
+            
+            // Original text content for reset functionality
+            let originalText = editorTextarea ? editorTextarea.value : '';
+            
+            // Save button click handler
+            saveBtn.addEventListener('click', function() {
+                if (!editorTextarea) return;
+                
+                const pageId = editorTextarea.dataset.pageId;
+                const text = editorTextarea.value;
+                
+                // Send HTMX request to save changes
+                htmx.ajax('POST', `/api/page/${pageId}`, {
+                    target: '#status-message',
+                    swap: 'outerHTML',
+                    values: {
+                        text: text
+                    }
+                });
+                
+                // Show status message
+                statusMessage.classList.remove('d-none');
+                statusMessage.classList.remove('fade-out');
+                
+                // Hide status message after 3 seconds
+                setTimeout(function() {
+                    statusMessage.classList.add('fade-out');
+                    setTimeout(function() {
+                        statusMessage.classList.add('d-none');
+                    }, 500);
+                }, 3000);
+                
+                // Enable preview button after saving
+                previewAudioBtn.disabled = false;
+            });
+            
+            // Generate audio button click handler
+            generateAudioBtn.addEventListener('click', function() {
+                if (confirm('Generate audio for the entire book? This may take some time.')) {
+                    htmx.ajax('POST', '/api/generate_audio', {
+                        values: {
+                            book_name: '{{ book_name }}'
+                        }
+                    }).then(function(response) {
+                        const data = JSON.parse(response);
+                        if (data.success) {
+                            alert(`Audio generated successfully! ${data.page_count} pages processed.`);
+                        } else {
+                            alert('Error generating audio: ' + data.error);
+                        }
+                    });
+                }
+            });
+            
+            // Preview audio button click handler
+            previewAudioBtn.addEventListener('click', function() {
+                if (!editorTextarea) return;
+                
+                const text = editorTextarea.value;
+                const pageId = editorTextarea.dataset.pageId;
+                
+                // Show loading state
+                previewAudioBtn.disabled = true;
+                previewAudioBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+                audioPreview.classList.remove('d-none');
+                
+                // Call API to generate preview audio
+                fetch('/api/preview_audio', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        page_id: pageId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.audio_url) {
+                        audioPlayer.src = data.audio_url;
+                        audioPlayer.load();
+                        audioPlayer.play();
+                    } else {
+                        alert('Error generating audio preview: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error generating audio preview. Please try again.');
+                })
+                .finally(() => {
+                    // Reset button state
+                    previewAudioBtn.disabled = false;
+                    previewAudioBtn.textContent = 'Preview Audio';
+                });
+            });
+            
+            // Initialize editor
+            if (editorTextarea) {
+                editorTextarea.focus();
+            }
+        });
+        
+        // Text formatting functions
+        function formatText(action) {
+            const textarea = document.getElementById('editor-textarea');
+            if (!textarea) return;
+            
+            let text = textarea.value;
+            
+            switch (action) {
+                case 'capitalize':
+                    // Capitalize first letter of each sentence
+                    text = text.replace(/(^\s*|[.!?]\s+)([a-z])/g, function(match, p1, p2) {
+                        return p1 + p2.toUpperCase();
+                    });
+                    break;
+                    
+                case 'fix-spaces':
+                    // Fix multiple spaces and space before punctuation
+                    text = text.replace(/\s+/g, ' ');
+                    text = text.replace(/\s+([.,;:!?])/g, '$1');
+                    break;
+                    
+                case 'fix-hyphens':
+                    // Fix hyphenated words at line breaks
+                    text = text.replace(/(\w+)-\s*\n\s*(\w+)/g, '$1$2');
+                    break;
+                    
+                case 'remove-breaks':
+                    // Remove line breaks within paragraphs
+                    text = text.replace(/(?<!\n)\n(?!\n)/g, ' ');
+                    break;
+            }
+            
+            textarea.value = text;
+        }
+        
+        function showChunkBreaks() {
+            const textarea = document.getElementById('editor-textarea');
+            if (!textarea) return;
+            
+            // Send text to server for chunking
+            htmx.ajax('POST', '/api/chunk_text', {
+                values: {
+                    text: textarea.value,
+                    max_chars: 5000 // ElevenLabs limit
+                }
+            }).then(function(response) {
+                const data = JSON.parse(response);
+                if (data.chunks && data.chunks.length > 1) {
+                    // Insert visual chunk breaks
+                    let newText = '';
+                    for (let i = 0; i < data.chunks.length; i++) {
+                        newText += data.chunks[i];
+                        if (i < data.chunks.length - 1) {
+                            newText += '\n\n<CHUNK_BREAK>\n\n';
+                        }
+                    }
+                    textarea.value = newText;
+                }
+            });
+        }
+        
+        function hideChunkBreaks() {
+            const textarea = document.getElementById('editor-textarea');
+            if (!textarea) return;
+            
+            // Remove chunk break markers
+            textarea.value = textarea.value.replace(/\n\n<CHUNK_BREAK>\n\n/g, '\n\n');
+        }
+        
+        function checkSpelling() {
+            // This would call a server-side spelling API
+            // For now, just show a placeholder implementation
+            alert('Spelling check would be implemented here, connecting to a spelling API');
+        }
+        
+        function resetText() {
+            const textarea = document.getElementById('editor-textarea');
+            if (!textarea) return;
+            
+            if (confirm('Reset text to original OCR output? All changes will be lost.')) {
+                textarea.value = originalText;
+            }
+        }
+    </script>
+</body>
+</html>
