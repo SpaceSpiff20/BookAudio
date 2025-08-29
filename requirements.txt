@@ -1,0 +1,10 @@
+flask
+pillow
+pytesseract
+opencv-python
+piexif
+requests
+pydub
+ebooklib
+beautifulsoup4
+speechify-api 
